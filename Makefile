@@ -3,15 +3,15 @@ ifndef VERBOSE
 .SILENT: build test docker help stage release clean latest
 endif
 
+SHELL=/bin/bash
 VER := $(shell cat VERSION)
 ORG := tacc
 ALL := $(BASE) $(MPI)
-BUILD := scripts/build_docker.sh
-EDR := maverick wrangler hikari maverick2
+IB := frontera ls6 maverick2
 OPA := stampede2
-SYS := $(EDR) $(OPA) ls5
+SYS := $(IB) $(OPA)
 
-BUILD = docker build --build-arg ORG=$(ORG) --build-arg VER=$(VER) --build-arg REL=$(@) -t $(ORG)/$@:$(VER) -f containers/$(subst -ppc64le,,$@)
+BUILD = docker build --build-arg ORG=$(ORG) --build-arg VER=$(VER) --build-arg REL=$(@) -t $(ORG)/$@:$(VER) -f containers/$(@)
 TAG = docker tag $(ORG)/$@:$(VER) $(ORG)/$@:latest
 PUSH = docker push $(ORG)/$@:$(VER) && docker push $(ORG)/$@:latest
 define TAG_AND_PUSH
@@ -26,7 +26,6 @@ endef
 DEFAULT := -O2 -pipe -march=x86-64 -ftree-vectorize
 # Haswell doesn't exist in all gcc versions
 TACC := $(DEFAULT) -mtune=core-avx2
-PPC := -mcpu=power8 -O2 -pipe
 
 ####################################
 # Sanity checks
@@ -43,30 +42,22 @@ containers/extras/osu-micro-benchmarks-5.4.4.tar.gz:
 ####################################
 # Base Images
 ####################################
-BASE := $(shell echo tacc-{ubuntu18,centos7} tacc-centos7-ppc64le)
+BASE := $(shell echo tacc-{ubuntu22,rockylinux8})
 BASE_TEST = docker run --rm -it $(ORG)/$@:$(VER) bash -c 'echo $$CFLAGS | grep "pipe" && ls /etc/$@-release'
-bionic:
-	docker pull ubuntu:bionic
-centos7:
-	docker pull centos:7
-centos7-ppc64le:
-	docker pull ppc64le/centos:7
-tacc-ubuntu18: containers/tacc-ubuntu18 | docker bionic
+jammy:
+	docker pull ubuntu:22.04
+rockylinux8:
+	docker pull rockylinux:8.7
+tacc-ubuntu22: containers/tacc-ubuntu22 | docker jammy
 	$(BUILD) --build-arg FLAGS="$(TACC)" ./containers &> $@.log
 	$(BASE_TEST) >> $@.log 2>&1
-	#$(TAG) >> $@.log 2>&1 && $(PUSH) >> $@.log 2>&1
-tacc-centos7: containers/tacc-centos7 | docker centos7
+tacc-rockylinux8: containers/tacc-rockylinux8 | docker rockylinux8
 	$(BUILD) --build-arg FLAGS="$(TACC)" ./containers &> $@.log
 	$(BASE_TEST) >> $@.log 2>&1
-	#$(TAG) >> $@.log 2>&1 && $(PUSH) >> $@.log 2>&1
-tacc-centos7-ppc64le: containers/tacc-centos7 | docker centos7-ppc64le
-	$(BUILD) --build-arg ARCH="ppc64le/" --build-arg FLAGS="$(PPC)" ./containers &> $@.log
-	$(BASE_TEST) >> $@.log 2>&1
-	#$(TAG) >> $@.log 2>&1 && $(PUSH) >> $@.log 2>&1
 base-images: $(BASE)
 
 clean-base: | docker
-	docker rmi $(ORG)/tacc-{ubuntu18,centos7}:{$(VER),latest}
+	docker rmi $(ORG)/tacc-{ubuntu22,rockylinux8}:{$(VER),latest}
 push-base: | docker
 	for image in $(BASE); do $(call TAG_AND_PUSH,$$image); done
 
@@ -75,36 +66,27 @@ push-base: | docker
 ####################################
 #IMPI := $(shell echo tacc-{ubuntu18,centos7}-impi{18.0.2-psm2,19.0.5-ib,19.0.7-common})
 IMPI := $(shell echo tacc-{ubuntu18,centos7}-impi19.0.7-common)
-MPI := $(shell echo tacc-{ubuntu18,centos7}-mvapich2.3-{ib,psm2} tacc-centos7-ppc64le-mvapich2.3-ib)
+MPI := $(shell echo tacc-{ubuntu18,centos7}-mvapich2.3-{ib,psm2})
 MPI_TEST = docker run --rm -it $(ORG)/$@:$(VER) bash -c 'which mpicc && ls /etc/$@-release'
 IMPI_TEST = $(MPI_TEST) && docker run --rm -it $(ORG)/$@:$(VER) mpirun hellow
 # IB
 %-mvapich2.3-ib: containers/%-mvapich2.3-ib | docker %
 	$(BUILD) --build-arg FLAGS="$(TACC)" ./containers
 	$(MPI_TEST)
-	#$(TAG) && $(PUSH)
-%-ppc64le-mvapich2.3-ib: containers/%-mvapich2.3-ib | docker %-ppc64le
-	$(BUILD) --build-arg FLAGS="$(PPC)" --build-arg ARCH="-ppc64le" ./containers
-	$(MPI_TEST)
-	#$(TAG) && $(PUSH)
 # PSM2
 %-mvapich2.3-psm2: containers/%-mvapich2.3-psm2 | docker %
 	$(BUILD) --build-arg FLAGS="$(TACC)" ./containers
 	$(MPI_TEST)
-	#$(TAG) && $(PUSH)
 # IMPI
 %-impi18.0.2-psm2: containers/%-impi18.0.2-psm2 | docker %
 	$(BUILD) --build-arg FLAGS="$(TACC)" ./containers
 	$(MPI_TEST)
-	#$(TAG) && $(PUSH)
 %-impi19.0.5-ib: containers/%-impi19.0.5-ib | docker %
 	$(BUILD) --build-arg FLAGS="$(TACC)" ./containers
 	$(MPI_TEST)
-	#$(TAG) && $(PUSH)
 %-impi19.0.7-common: containers/%-impi19.0.7-common | docker %
 	$(BUILD) --build-arg FLAGS="$(TACC)" ./containers
 	$(IMPI_TEST)
-	#$(TAG) && $(PUSH)
 #docker tag $(ORG)/$@:$(VER) $(ORG)/$@:stampede2
 #docker push $(ORG)/$@:stampede2
 #	for sys in hikari maverick2 wrangler; do \

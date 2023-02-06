@@ -1,0 +1,39 @@
+# Use 22.04 LTS
+FROM ubuntu:22.04
+
+########################################
+# BUILD Args
+########################################
+
+ARG FLAGS
+ARG VER
+ARG REL
+
+########################################
+# Configure ENV
+########################################
+
+SHELL ["/bin/bash", "-c"]
+
+ENV SHELL=/bin/bash
+ENV CFLAGS=${FLAGS}
+ENV CXXFLAGS=${FLAGS}
+RUN RF=/etc/${REL}-release; echo ${VER} > $RF && chmod a+r $RF
+
+RUN echo -e '#!/bin/bash\nexec "$@"' > /entry.sh && chmod +x /entry.sh
+ENTRYPOINT ["/entry.sh"]
+
+########################################
+# Add docker-clean
+########################################
+
+ADD extras/docker-clean /usr/bin/docker-clean
+RUN chmod a+rx /usr/bin/docker-clean && docker-clean
+
+########################################
+# Necessary packages
+########################################
+
+RUN apt-get update \
+	&& DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends curl build-essential \
+	&& docker-clean
