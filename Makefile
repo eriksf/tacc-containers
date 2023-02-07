@@ -64,9 +64,8 @@ push-base: | docker
 ####################################
 # MPI Images
 ####################################
-#IMPI := $(shell echo tacc-{ubuntu18,centos7}-impi{18.0.2-psm2,19.0.5-ib,19.0.7-common})
-IMPI := $(shell echo tacc-{ubuntu18,centos7}-impi19.0.7-common)
-MPI := $(shell echo tacc-{ubuntu18,centos7}-mvapich2.3-{ib,psm2})
+IMPI := $(shell echo tacc-{ubuntu22,rockylinux8}-impi19.0.9-common)
+MPI := $(shell echo tacc-{ubuntu22,rockylinux8}-mvapich2.3-{ib,psm2})
 MPI_TEST = docker run --rm -it $(ORG)/$@:$(VER) bash -c 'which mpicc && ls /etc/$@-release'
 IMPI_TEST = $(MPI_TEST) && docker run --rm -it $(ORG)/$@:$(VER) mpirun hellow
 # IB
@@ -78,26 +77,14 @@ IMPI_TEST = $(MPI_TEST) && docker run --rm -it $(ORG)/$@:$(VER) mpirun hellow
 	$(BUILD) --build-arg FLAGS="$(TACC)" ./containers
 	$(MPI_TEST)
 # IMPI
-%-impi18.0.2-psm2: containers/%-impi18.0.2-psm2 | docker %
-	$(BUILD) --build-arg FLAGS="$(TACC)" ./containers
-	$(MPI_TEST)
-%-impi19.0.5-ib: containers/%-impi19.0.5-ib | docker %
-	$(BUILD) --build-arg FLAGS="$(TACC)" ./containers
-	$(MPI_TEST)
-%-impi19.0.7-common: containers/%-impi19.0.7-common | docker %
+%-impi19.0.9-common: containers/%-impi19.0.9-common | docker %
 	$(BUILD) --build-arg FLAGS="$(TACC)" ./containers
 	$(IMPI_TEST)
-#docker tag $(ORG)/$@:$(VER) $(ORG)/$@:stampede2
-#docker push $(ORG)/$@:stampede2
-#	for sys in hikari maverick2 wrangler; do \
-#		docker tag $(ORG)/$@:$(VER) $(ORG)/$@:$$sys \
-#		&& docker push $(ORG)/$@:$$sys; \
-#	done
 mpi-images: $(MPI) $(IMPI)
 
 clean-mpi: | docker
-	docker rmi $(ORG)/tacc-{ubuntu18,centos7}-mvapich2.3-{ib,psm2}:{$(VER),latest}
-	docker rmi $(ORG)/tacc-{ubuntu18,centos7}-impi{18.0.2-psm2,19.0.5-ib,19.0.7-common}:{$(VER),latest}
+	docker rmi $(ORG)/tacc-{ubuntu22,rockylinux8}-mvapich2.3-{ib,psm2}:{$(VER),latest}
+	docker rmi $(ORG)/tacc-{ubuntu22,rockylinux8}-impi19.0.9-common:{$(VER),latest}
 push-mpi: | docker
 	for image in $(MPI) $(IMPI); do $(call TAG_AND_PUSH,$$image); done
 ####################################
